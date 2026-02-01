@@ -3,10 +3,15 @@ name = "app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+default-run = "tinycapture-modern"
 
 [[bin]]
 name = "tinycapture"
 path = "src/main.rs"
+
+[[bin]]
+name = "tinycapture-modern"
+path = "src/main_egui.rs"
 
 [dependencies]
 windows.workspace = true
@@ -20,6 +25,10 @@ uuid.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 once_cell.workspace = true
+
+# Modern UI framework
+eframe = "0.28"
+egui = "0.28"
 
 [build-dependencies]
 embed-resource = "2.4"

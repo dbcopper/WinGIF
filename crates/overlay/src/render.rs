@@ -6,7 +6,7 @@ use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateSolidBrush, DeleteObject, EndPaint, FillRect, SelectObject,
     SetBkMode, SetTextColor, TextOutW, CreatePen, Rectangle,
-    HDC, PAINTSTRUCT, TRANSPARENT, PS_SOLID, PS_DASH,
+    HDC, PAINTSTRUCT, TRANSPARENT, PS_SOLID,
     SetDIBitsToDevice, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
 };
 use std::mem::size_of;
@@ -91,7 +91,7 @@ impl OverlayRenderer {
             bmiColors: [Default::default()],
         };
 
-        SetDIBitsToDevice(
+        let result = SetDIBitsToDevice(
             hdc,
             0,
             0,
@@ -105,6 +105,18 @@ impl OverlayRenderer {
             &bmi,
             DIB_RGB_COLORS,
         );
+
+        // If SetDIBitsToDevice fails, the window will be black
+        // This ensures we can debug the issue
+        if result == 0 {
+            // Draw a fallback message
+            use windows::Win32::Graphics::Gdi::{TextOutW, SetTextColor};
+            let msg = "截图加载失败";
+            let msg_wide: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0x00FFFFFF));
+            let _ = TextOutW(hdc, 50, 50, &msg_wide[..msg_wide.len() - 1]);
+        }
     }
 
     unsafe fn draw_overlay(&self, _hdc: HDC) {
@@ -118,7 +130,8 @@ impl OverlayRenderer {
     }
 
     unsafe fn draw_window_highlight(&self, hdc: HDC, rect: &Rect) {
-        let pen = CreatePen(PS_SOLID, 3, windows::Win32::Foundation::COLORREF(0x00FF8800)); // Orange
+        // Draw thick, vibrant orange border for window highlight
+        let pen = CreatePen(PS_SOLID, 4, windows::Win32::Foundation::COLORREF(0x0000AAFF)); // Bright orange
         let old_pen = SelectObject(hdc, pen);
 
         // Hollow rectangle
@@ -142,8 +155,8 @@ impl OverlayRenderer {
     }
 
     unsafe fn draw_selection(&self, hdc: HDC, rect: &Rect) {
-        // Draw selection border
-        let pen = CreatePen(PS_DASH, 2, windows::Win32::Foundation::COLORREF(0x0000FF00)); // Green
+        // Draw selection border with solid line for better visibility
+        let pen = CreatePen(PS_SOLID, 3, windows::Win32::Foundation::COLORREF(0x0000FF00)); // Bright green
         let old_pen = SelectObject(hdc, pen);
 
         let brush = windows::Win32::Graphics::Gdi::GetStockObject(
@@ -164,30 +177,71 @@ impl OverlayRenderer {
         SelectObject(hdc, old_pen);
         DeleteObject(pen);
 
-        // Draw size text
-        let size_text: Vec<u16> = format!("{}x{}", rect.width, rect.height)
+        // Draw size info with background for better readability
+        use windows::Win32::Graphics::Gdi::CreateFontW;
+        use windows::Win32::Graphics::Gdi::{FW_BOLD, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, FF_SWISS};
+        use windows::core::w;
+
+        let size_text = format!("{} × {} px", rect.width, rect.height);
+        let size_wide: Vec<u16> = size_text
             .encode_utf16()
             .chain(std::iter::once(0))
             .collect();
+
+        // Create larger font for size display
+        let font = CreateFontW(
+            20, 0, 0, 0,
+            FW_BOLD.0 as i32,
+            0, 0, 0,
+            DEFAULT_CHARSET.0 as u32,
+            OUT_DEFAULT_PRECIS.0 as u32,
+            CLIP_DEFAULT_PRECIS.0 as u32,
+            DEFAULT_QUALITY.0 as u32,
+            (DEFAULT_PITCH.0 | FF_SWISS.0) as u32,
+            w!("Microsoft YaHei UI"),
+        );
+        let old_font = SelectObject(hdc, font);
+
+        // Draw semi-transparent background for text
+        let bg_brush = windows::Win32::Graphics::Gdi::CreateSolidBrush(
+            windows::Win32::Foundation::COLORREF(0x00333333)
+        );
+        let text_bg_rect = windows::Win32::Foundation::RECT {
+            left: local_x + 4,
+            top: local_y + rect.height as i32 + 4,
+            right: local_x + 180,
+            bottom: local_y + rect.height as i32 + 32,
+        };
+        windows::Win32::Graphics::Gdi::FillRect(hdc, &text_bg_rect, bg_brush);
+        DeleteObject(bg_brush);
 
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0x00FFFFFF)); // White
 
         TextOutW(
             hdc,
-            local_x + 4,
-            local_y + rect.height as i32 + 4,
-            &size_text[..size_text.len() - 1],
+            local_x + 8,
+            local_y + rect.height as i32 + 8,
+            &size_wide[..size_wide.len() - 1],
         );
+
+        SelectObject(hdc, old_font);
+        DeleteObject(font);
     }
 
     unsafe fn draw_info_bar(&self, hdc: HDC) {
-        // Draw info bar at bottom
-        let bar_height = 32;
+        use windows::Win32::Graphics::Gdi::CreateFontW;
+        use windows::Win32::Graphics::Gdi::{FW_NORMAL, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, FF_SWISS};
+        use windows::core::w;
+
+        // Draw info bar at bottom with better height
+        let bar_height = 40;
         let bar_top = self.screenshot.height as i32 - bar_height;
 
-        // Dark background
-        let brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x00333333));
+        // Semi-transparent dark background
+        let brush = CreateSolidBrush(windows::Win32::Foundation::COLORREF(0x00222222));
         let bar_rect = RECT {
             left: 0,
             top: bar_top,
@@ -197,7 +251,7 @@ impl OverlayRenderer {
         FillRect(hdc, &bar_rect, brush);
         DeleteObject(brush);
 
-        // Instructions text
+        // Instructions text with better font
         let text = if self.is_dragging {
             "拖动选择区域 | 松开确认"
         } else {
@@ -206,10 +260,26 @@ impl OverlayRenderer {
 
         let text_wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
 
+        let font = CreateFontW(
+            18, 0, 0, 0,
+            FW_NORMAL.0 as i32,
+            0, 0, 0,
+            DEFAULT_CHARSET.0 as u32,
+            OUT_DEFAULT_PRECIS.0 as u32,
+            CLIP_DEFAULT_PRECIS.0 as u32,
+            DEFAULT_QUALITY.0 as u32,
+            (DEFAULT_PITCH.0 | FF_SWISS.0) as u32,
+            w!("Microsoft YaHei UI"),
+        );
+        let old_font = SelectObject(hdc, font);
+
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0x00FFFFFF));
 
-        TextOutW(hdc, 10, bar_top + 8, &text_wide[..text_wide.len() - 1]);
+        TextOutW(hdc, 15, bar_top + 10, &text_wide[..text_wide.len() - 1]);
+
+        SelectObject(hdc, old_font);
+        DeleteObject(font);
     }
 
     /// Get screenshot reference

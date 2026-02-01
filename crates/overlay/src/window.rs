@@ -10,21 +10,18 @@ use crate::{
     OverlayError, OverlayResult, SelectionOutcome,
 };
 use capture_wgc::Rect;
-use parking_lot::Mutex;
 use std::cell::RefCell;
-use std::sync::Arc;
 use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::Graphics::Gdi::{InvalidateRect, UpdateWindow};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HINSTANCE};
+use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    GetMessageW, GetWindowLongPtrW, LoadCursorW, PostQuitMessage, RegisterClassExW,
-    SetWindowLongPtrW, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
-    GWLP_USERDATA, IDC_CROSS, MSG, SW_SHOW, WM_DESTROY, WM_KEYDOWN, WM_LBUTTONDOWN,
+    GetMessageW, LoadCursorW, RegisterClassExW,
+    ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
+    IDC_CROSS, MSG, SW_SHOW, WM_DESTROY, WM_KEYDOWN, WM_LBUTTONDOWN,
     WM_CLOSE, WM_LBUTTONUP, WM_MOUSEMOVE, WM_PAINT, WNDCLASSEXW, WS_EX_TOPMOST, WS_POPUP,
 };
-use windows::Win32::Foundation::HINSTANCE;
 
 thread_local! {
     static OVERLAY_STATE: RefCell<Option<Box<OverlayState>>> = RefCell::new(None);
@@ -120,7 +117,6 @@ impl OverlayWindow {
             )?;
 
             ShowWindow(hwnd, SW_SHOW);
-            let _ = UpdateWindow(hwnd);
 
             // Message loop
             let mut msg = MSG::default();
@@ -320,6 +316,12 @@ impl OverlayWindow {
                         if let Some(ref mut renderer) = state.renderer {
                             renderer.set_selection(Some(win.rect));
                         }
+
+                        state.result = Some(SelectionOutcome::Window {
+                            hwnd: win.hwnd,
+                            rect: win.rect,
+                        });
+                        let _ = DestroyWindow(hwnd);
                     }
                 } else {
                     // End of drag
@@ -337,6 +339,9 @@ impl OverlayWindow {
                             if let Some(ref mut renderer) = state.renderer {
                                 renderer.set_selection(None);
                             }
+                        } else {
+                            state.result = Some(SelectionOutcome::Region(rect));
+                            let _ = DestroyWindow(hwnd);
                         }
                     }
                 }

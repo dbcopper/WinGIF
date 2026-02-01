@@ -6,9 +6,11 @@ pub mod render;
 pub mod screenshot;
 pub mod selection;
 pub mod window;
+pub mod outline;
 
 pub use selection::{SelectionMode, SelectionResult, WindowInfo};
 pub use window::OverlayWindow;
+pub use outline::{destroy_recording_outline, show_recording_outline, update_recording_outline};
 
 use capture_wgc::Rect;
 use thiserror::Error;
