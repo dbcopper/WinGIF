@@ -1,6 +1,7 @@
 //! Modern UI using egui framework
 
 use crate::state::{AppState, StateMachine};
+use overlay::{destroy_recording_outline, show_recording_outline};
 use eframe::egui;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ pub struct EguiUiState {
     pub state_machine: StateMachine,
     pub status_text: String,
     pub frame_count: usize,
+    pub main_hwnd: isize,
     pub recording_outline_hwnd: isize,
     pub on_record: Option<ActionCallback>,
     pub on_stop: Option<ActionCallback>,
@@ -25,6 +27,7 @@ impl EguiUiState {
             state_machine: StateMachine::new(),
             status_text: "就绪".to_string(),
             frame_count: 0,
+            main_hwnd: 0,
             recording_outline_hwnd: 0,
             on_record: None,
             on_stop: None,
@@ -89,7 +92,36 @@ impl TinyCaptureApp {
 }
 
 impl eframe::App for TinyCaptureApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        {
+            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            let mut state = self.state.lock();
+            if state.main_hwnd == 0 {
+                if let Ok(handle) = frame.window_handle() {
+                    if let RawWindowHandle::Win32(win32) = handle.as_raw() {
+                        state.main_hwnd = win32.hwnd.get();
+                    }
+                }
+            }
+        }
+
+        {
+            let mut state = self.state.lock();
+            let app_state = state.state_machine.state().clone();
+            if matches!(app_state, AppState::Recording) {
+                if state.recording_outline_hwnd == 0 {
+                    if let Some(session) = state.state_machine.session() {
+                        if let Ok(hwnd) = show_recording_outline(session.region) {
+                            state.recording_outline_hwnd = hwnd;
+                        }
+                    }
+                }
+            } else if state.recording_outline_hwnd != 0 {
+                destroy_recording_outline(state.recording_outline_hwnd);
+                state.recording_outline_hwnd = 0;
+            }
+        }
+
         // Clone necessary data to avoid holding lock during UI rendering
         let (app_state, status_text, frame_count, on_record, on_stop, on_export) = {
             let state = self.state.lock();

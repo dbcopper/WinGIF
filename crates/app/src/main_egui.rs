@@ -18,10 +18,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
+use windows::Win32::Foundation::HWND;
 use windows::Win32::System::WinRT::{RoInitialize, RoUninitialize, RO_INIT_MULTITHREADED};
 use windows::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
+use windows::Win32::UI::WindowsAndMessaging::{SetForegroundWindow, ShowWindow, SW_HIDE, SW_SHOW};
 
 /// Capture worker commands
 enum CaptureCommand {
@@ -118,6 +120,24 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn set_main_window_visible(ui_state: &Arc<Mutex<EguiUiState>>, visible: bool) {
+    let hwnd_raw = {
+        let state = ui_state.lock();
+        state.main_hwnd
+    };
+    if hwnd_raw == 0 {
+        return;
+    }
+
+    let hwnd = HWND(hwnd_raw as *mut std::ffi::c_void);
+    unsafe {
+        ShowWindow(hwnd, if visible { SW_SHOW } else { SW_HIDE });
+        if visible {
+            let _ = SetForegroundWindow(hwnd);
+        }
+    }
+}
+
 fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureCommand>) {
     // Start selecting
     {
@@ -128,7 +148,10 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
         state.status_text = "选择区域...".to_string();
     }
 
+    set_main_window_visible(&ui_state, false);
+
     // Show overlay in a new thread to avoid blocking the UI
+    let ui_state_for_overlay = ui_state.clone();
     thread::spawn(move || {
         // Small delay for window to update
         thread::sleep(Duration::from_millis(100));
@@ -143,10 +166,15 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
                 std::fs::create_dir_all(&temp_dir).ok();
 
                 // Determine capture target
-                let (capture_target, crop_rect) = determine_monitor_capture(&rect);
+                let (capture_target, crop_rect, recording_rect) = determine_monitor_capture(&rect);
 
                 // Start recording
-                let session = RecordingSession::new(capture_target.clone(), rect, temp_dir.clone(), 15);
+                let session = RecordingSession::new(
+                    capture_target.clone(),
+                    recording_rect,
+                    temp_dir.clone(),
+                    15,
+                );
 
                 {
                     let mut state = ui_state.lock();
@@ -154,10 +182,6 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
                     state.status_text = "录制中...".to_string();
                     state.frame_count = 0;
 
-                    // Show recording outline
-                    if let Ok(outline_hwnd) = show_recording_outline(rect) {
-                        state.recording_outline_hwnd = outline_hwnd;
-                    }
                 }
 
                 // Send capture command
@@ -186,10 +210,6 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
                     state.status_text = "录制中...".to_string();
                     state.frame_count = 0;
 
-                    // Show recording outline
-                    if let Ok(outline_hwnd) = show_recording_outline(rect) {
-                        state.recording_outline_hwnd = outline_hwnd;
-                    }
                 }
 
                 let wgc_target = CaptureTarget::Window(hwnd);
@@ -206,10 +226,12 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
                 state.status_text = "已取消".to_string();
             }
         }
+
+        set_main_window_visible(&ui_state_for_overlay, true);
     });
 }
 
-fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>) {
+fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>, Rect) {
     let center_x = rect.x + rect.width as i32 / 2;
     let center_y = rect.y + rect.height as i32 / 2;
 
@@ -258,14 +280,20 @@ fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>) {
                 if cw == 0 || ch == 0 {
                     None
                 } else {
-                    Some(Rect {
-                        x,
-                        y,
-                        width: cw,
-                        height: ch,
-                    })
+                    Some(Rect { x, y, width: cw, height: ch })
                 }
             }
+        };
+
+        let recording_rect = if let Some(cr) = crop_rect {
+            Rect {
+                x: monitor_left + cr.x,
+                y: monitor_top + cr.y,
+                width: cr.width,
+                height: cr.height,
+            }
+        } else {
+            *rect
         };
 
         (
@@ -274,6 +302,7 @@ fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>) {
                 region: *rect,
             },
             crop_rect,
+            recording_rect,
         )
     }
 }
@@ -418,7 +447,8 @@ fn capture_worker(cmd_rx: Receiver<CaptureCommand>, result_tx: Sender<CaptureRes
                         }
 
                         let mut proc = FrameProcessor::new(output_dir);
-                        proc.set_crop_rect(crop_rect);
+                        // Crop is already applied in CaptureController::process_frame.
+                        proc.set_crop_rect(None);
 
                         controller = Some(ctrl);
                         processor = Some(proc);
@@ -472,7 +502,11 @@ fn capture_worker(cmd_rx: Receiver<CaptureCommand>, result_tx: Sender<CaptureRes
                 let elapsed_secs = start.elapsed().as_secs();
                 if elapsed_secs > last_progress_secs {
                     last_progress_secs = elapsed_secs;
-                    let _ = result_tx.send(CaptureResult::Progress { elapsed_secs });
+                    let frame_count = processor.as_ref().map(|p| p.frame_count()).unwrap_or(0);
+                    let _ = result_tx.send(CaptureResult::Progress {
+                        elapsed_secs,
+                        frame_count,
+                    });
                 }
             }
         }

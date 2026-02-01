@@ -241,6 +241,7 @@ dependencies = [
  "once_cell",
  "overlay",
  "parking_lot",
+ "raw-window-handle 0.6.2",
  "rfd",
  "thiserror 1.0.69",
  "uuid",

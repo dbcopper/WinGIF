@@ -37,7 +37,7 @@ enum CaptureCommand {
 /// Capture worker result
 enum CaptureResult {
     Started,
-    Progress { elapsed_secs: u64 },
+    Progress { elapsed_secs: u64, frame_count: usize },
     Stopped { frame_count: usize, duration_secs: f64 },
     Error(String),
 }
@@ -160,12 +160,12 @@ fn on_record_click(
             std::fs::create_dir_all(&temp_dir).ok();
 
             // Determine capture target
-            let (capture_target, crop_rect) = determine_monitor_capture(&rect);
+            let (capture_target, crop_rect, recording_rect) = determine_monitor_capture(&rect);
 
             // Start recording
             let session = RecordingSession::new(
                 capture_target.clone(),
-                rect,
+                recording_rect,
                 temp_dir.clone(),
                 15, // FPS
             );
@@ -233,7 +233,7 @@ fn on_record_click(
     post_update_state(main_hwnd);
 }
 
-fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>) {
+fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>, Rect) {
     // Get the monitor containing the center of the selection
     let center_x = rect.x + rect.width as i32 / 2;
     let center_y = rect.y + rect.height as i32 / 2;
@@ -286,12 +286,24 @@ fn determine_monitor_capture(rect: &Rect) -> (RecordingTarget, Option<Rect>) {
             }
         };
 
+        let recording_rect = if let Some(cr) = crop_rect {
+            Rect {
+                x: monitor_left + cr.x,
+                y: monitor_top + cr.y,
+                width: cr.width,
+                height: cr.height,
+            }
+        } else {
+            *rect
+        };
+
         (
             RecordingTarget::Monitor {
                 hmonitor: hmonitor.0 as isize,
                 region: *rect,
             },
             crop_rect,
+            recording_rect,
         )
     }
 }
@@ -443,7 +455,8 @@ fn capture_worker(cmd_rx: Receiver<CaptureCommand>, result_tx: Sender<CaptureRes
                         }
 
                         let mut proc = FrameProcessor::new(output_dir);
-                        proc.set_crop_rect(crop_rect);
+                        // Crop is already applied in CaptureController::process_frame.
+                        proc.set_crop_rect(None);
 
                         controller = Some(ctrl);
                         processor = Some(proc);
@@ -498,7 +511,11 @@ fn capture_worker(cmd_rx: Receiver<CaptureCommand>, result_tx: Sender<CaptureRes
                 let elapsed_secs = start.elapsed().as_secs();
                 if elapsed_secs > last_progress_secs {
                     last_progress_secs = elapsed_secs;
-                    let _ = result_tx.send(CaptureResult::Progress { elapsed_secs });
+                    let frame_count = processor.as_ref().map(|p| p.frame_count()).unwrap_or(0);
+                    let _ = result_tx.send(CaptureResult::Progress {
+                        elapsed_secs,
+                        frame_count,
+                    });
                 }
             }
         }
@@ -523,9 +540,10 @@ fn result_handler(
             Ok(CaptureResult::Started) => {
                 // Already handled
             }
-            Ok(CaptureResult::Progress { elapsed_secs }) => {
+            Ok(CaptureResult::Progress { elapsed_secs, frame_count }) => {
                 let mut state = ui_state.lock();
                 if matches!(state.state_machine.state(), crate::state::AppState::Recording) {
+                    state.frame_count = frame_count;
                     state.status_text = format!("录制中... {}s", elapsed_secs);
                     post_update_state(hwnd);
                 }

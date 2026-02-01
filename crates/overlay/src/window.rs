@@ -15,10 +15,13 @@ use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HINSTANCE};
 use windows::Win32::Graphics::Gdi::InvalidateRect;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, SetFocus};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     GetMessageW, LoadCursorW, RegisterClassExW,
-    ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
+    ShowWindow, TranslateMessage,
+    SetForegroundWindow,
+    CS_HREDRAW, CS_VREDRAW,
     IDC_CROSS, MSG, SW_SHOW, WM_DESTROY, WM_KEYDOWN, WM_LBUTTONDOWN,
     WM_CLOSE, WM_LBUTTONUP, WM_MOUSEMOVE, WM_PAINT, WNDCLASSEXW, WS_EX_TOPMOST, WS_POPUP,
 };
@@ -117,6 +120,8 @@ impl OverlayWindow {
             )?;
 
             ShowWindow(hwnd, SW_SHOW);
+            let _ = SetForegroundWindow(hwnd);
+            let _ = SetFocus(hwnd);
 
             // Message loop
             let mut msg = MSG::default();
@@ -210,7 +215,8 @@ impl OverlayWindow {
         }
     }
 
-    unsafe fn handle_mouse_down(_hwnd: HWND, lparam: LPARAM) {
+    unsafe fn handle_mouse_down(hwnd: HWND, lparam: LPARAM) {
+        let _ = SetCapture(hwnd);
         OVERLAY_STATE.with(|s| {
             if let Some(ref mut state) = *s.borrow_mut() {
                 let x = (lparam.0 & 0xFFFF) as i16 as i32;
@@ -294,6 +300,7 @@ impl OverlayWindow {
     }
 
     unsafe fn handle_mouse_up(hwnd: HWND, lparam: LPARAM) {
+        let _ = ReleaseCapture();
         OVERLAY_STATE.with(|s| {
             if let Some(ref mut state) = *s.borrow_mut() {
                 if !state.is_dragging {

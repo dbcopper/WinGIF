@@ -6,7 +6,7 @@ use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HINSTANCE, RECT};
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreatePen, DeleteObject, EndPaint, GetStockObject,
-    SelectObject, Rectangle, HOLLOW_BRUSH, PAINTSTRUCT, PS_SOLID,
+    SelectObject, Rectangle, HOLLOW_BRUSH, PAINTSTRUCT, PS_SOLID, UpdateWindow,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -71,6 +71,7 @@ pub fn show_recording_outline(rect: Rect) -> OverlayResult<isize> {
         )?;
 
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        let _ = UpdateWindow(hwnd);
 
         Ok(hwnd.0 as isize)
     }
