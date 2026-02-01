@@ -1,0 +1,14 @@
+[package]
+name = "export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+gifski.workspace = true
+image.workspace = true
+imgref = "1.10"
+rgb = "0.8"
+crossbeam-channel.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
