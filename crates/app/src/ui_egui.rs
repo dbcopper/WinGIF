@@ -37,11 +37,11 @@ impl EguiUiState {
 }
 
 /// Main application using egui
-pub struct TinyCaptureApp {
+pub struct WinGIFApp {
     state: Arc<Mutex<EguiUiState>>,
 }
 
-impl TinyCaptureApp {
+impl WinGIFApp {
     pub fn new(cc: &eframe::CreationContext<'_>, state: Arc<Mutex<EguiUiState>>) -> Self {
         // 配置中文字体
         Self::setup_custom_fonts(&cc.egui_ctx);
@@ -91,7 +91,7 @@ impl TinyCaptureApp {
     }
 }
 
-impl eframe::App for TinyCaptureApp {
+impl eframe::App for WinGIFApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         {
             use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -141,7 +141,7 @@ impl eframe::App for TinyCaptureApp {
 
                 // Title with custom style
                 ui.heading(
-                    egui::RichText::new("🎬 TinyCapture")
+                    egui::RichText::new("🎬 WinGIF")
                         .size(32.0)
                         .color(egui::Color32::from_rgb(51, 51, 51))
                 );

@@ -1,4 +1,4 @@
-//! Export module for TinyCapture
+//! Export module for WinGIF
 //!
 //! Provides GIF and PNG export functionality.
 

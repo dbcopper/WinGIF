@@ -3,8 +3,7 @@
     "allow": [
       "Read(//e/**)",
       "Bash(cargo build --release)",
-      "Bash(cargo build --release --bin tinycapture-modern)",
-      "Bash(cargo build --bin tinycapture-modern)"
+      "Bash(cargo build -p app)"
     ],
     "deny": [],
     "ask": []

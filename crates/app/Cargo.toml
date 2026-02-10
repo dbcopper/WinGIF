@@ -3,14 +3,10 @@ name = "app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-default-run = "tinycapture-modern"
+default-run = "wingif"
 
 [[bin]]
-name = "tinycapture"
-path = "src/main.rs"
-
-[[bin]]
-name = "tinycapture-modern"
+name = "wingif"
 path = "src/main_egui.rs"
 
 [dependencies]

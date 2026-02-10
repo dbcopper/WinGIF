@@ -1,4 +1,4 @@
-//! Overlay module for TinyCapture
+//! Overlay module for WinGIF
 //!
 //! Provides frozen screenshot overlay with region/window selection.
 

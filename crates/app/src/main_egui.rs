@@ -1,18 +1,17 @@
-//! TinyCapture - Modern UI version with egui
+//! WinGIF - Windows screen recording to GIF (egui UI)
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod state;
-mod tray;
 mod ui_egui;
 
 use crate::state::{RecordingSession, RecordingTarget};
-use crate::ui_egui::{EguiUiState, TinyCaptureApp};
+use crate::ui_egui::{EguiUiState, WinGIFApp};
 use capture_wgc::{CaptureController, CaptureTarget, FrameProcessor, Rect};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use eframe::egui;
 use export::{GifExportConfig, GifExporter};
-use overlay::{show_recording_outline, destroy_recording_outline, OverlayWindow, SelectionOutcome};
+use overlay::{destroy_recording_outline, OverlayWindow, SelectionOutcome};
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -101,16 +100,16 @@ fn main() -> anyhow::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([800.0, 400.0])
             .with_min_inner_size([600.0, 300.0])
-            .with_title("TinyCapture")
+            .with_title("WinGIF")
             .with_resizable(true),
         ..Default::default()
     };
 
     let ui_state_for_app = ui_state.clone();
     let _ = eframe::run_native(
-        "TinyCapture",
+        "WinGIF",
         native_options,
-        Box::new(|cc| Ok(Box::new(TinyCaptureApp::new(cc, ui_state_for_app)))),
+        Box::new(|cc| Ok(Box::new(WinGIFApp::new(cc, ui_state_for_app)))),
     );
 
     // Cleanup
@@ -162,7 +161,7 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
         match selection_result {
             Ok(SelectionOutcome::Region(rect)) => {
                 // Create temp directory
-                let temp_dir = std::env::temp_dir().join(format!("tinycapture_{}", uuid::Uuid::new_v4()));
+                let temp_dir = std::env::temp_dir().join(format!("wingif_{}", uuid::Uuid::new_v4()));
                 std::fs::create_dir_all(&temp_dir).ok();
 
                 // Determine capture target
@@ -198,7 +197,7 @@ fn on_record_click(ui_state: Arc<Mutex<EguiUiState>>, cmd_tx: Sender<CaptureComm
                 });
             }
             Ok(SelectionOutcome::Window { hwnd, rect }) => {
-                let temp_dir = std::env::temp_dir().join(format!("tinycapture_{}", uuid::Uuid::new_v4()));
+                let temp_dir = std::env::temp_dir().join(format!("wingif_{}", uuid::Uuid::new_v4()));
                 std::fs::create_dir_all(&temp_dir).ok();
 
                 let capture_target = RecordingTarget::Window { hwnd };

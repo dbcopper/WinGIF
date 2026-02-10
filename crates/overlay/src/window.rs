@@ -60,7 +60,7 @@ impl OverlayState {
 pub struct OverlayWindow;
 
 impl OverlayWindow {
-    const CLASS_NAME: PCWSTR = w!("TinyCaptureOverlay");
+    const CLASS_NAME: PCWSTR = w!("WinGIFOverlay");
     const DRAG_THRESHOLD: i32 = 4;
 
     /// Create and show overlay window
@@ -107,7 +107,7 @@ impl OverlayWindow {
             let hwnd = CreateWindowExW(
                 WS_EX_TOPMOST,
                 Self::CLASS_NAME,
-                w!("TinyCapture Selection"),
+                w!("WinGIF Selection"),
                 WS_POPUP,
                 vd.left,
                 vd.top,

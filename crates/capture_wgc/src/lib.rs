@@ -1,4 +1,4 @@
-//! Windows Graphics Capture module for TinyCapture
+//! Windows Graphics Capture module for WinGIF
 //!
 //! Provides screen and window capture using WGC API.
 

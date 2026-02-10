@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `crates/app/src` contains two entry points (`main.rs` classic Win32 UI, `main_egui.rs` modern egui UI), plus `ui.rs`, `ui_egui.rs`, `tray.rs`, and `state.rs`.
+- `crates/app/src` contains the entry point `main_egui.rs` (egui UI), plus `ui_egui.rs` and `state.rs`.
 - `crates/overlay/src` implements the selection overlay window, outline rendering, screenshot preview, and render loop (`window.rs`, `outline.rs`, `screenshot.rs`, `selection.rs`, `render.rs`).
 - `crates/capture_wgc/src` contains the Windows Graphics Capture + D3D11 capture pipeline (`capture.rs`, `d3d11.rs`, `frame.rs`).
 - `crates/export/src` handles GIF/PNG export (`gif.rs`, `png.rs`).
@@ -11,11 +11,9 @@
 ## Build, Test, and Development Commands
 Run from the repository root:
 ```cmd
-cargo build --release                       :: release build
-cargo run --release                         :: run default binary (tinycapture-modern)
-cargo run -p app --bin tinycapture --release :: run classic Win32 UI
-cargo run -p app --bin tinycapture-modern --release :: run modern egui UI
-cargo test                                  :: run all tests
+cargo build --release   :: release build
+cargo run --release     :: run wingif (egui UI)
+cargo test              :: run all tests
 ```
 These are standard Cargo commands; use the same commands in PowerShell or cmd.exe.
 

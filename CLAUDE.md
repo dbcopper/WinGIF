@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TinyCapture 是一个 Windows 专用的轻量级屏幕录制转 GIF 工具，使用 Rust 编写。项目已完成核心功能实现。
+WinGIF 是一个 Windows 专用的轻量级屏幕录制转 GIF 工具，使用 Rust 编写。项目已完成核心功能实现。
 
 **所有响应和操作必须使用中文。所有命令必须使用 cmd.exe（不使用 PowerShell 或 WSL）。**
 
@@ -13,7 +13,7 @@ TinyCapture 是一个 Windows 专用的轻量级屏幕录制转 GIF 工具，使
 - **Language:** Rust (edition 2021)
 - **Platform:** Windows 10 1903+ (64-bit)
 - **Screen Capture:** Windows Graphics Capture (WGC) + Direct3D 11
-- **UI:** Win32 API (native Windows)
+- **UI:** egui / eframe
 - **GIF Export:** gifski crate
 - **File Dialogs:** rfd crate
 - **Threading:** crossbeam-channel, parking_lot
@@ -37,7 +37,7 @@ cargo build -p capture_wgc --release
 cargo build -p export --release
 ```
 
-可执行文件名称：`tinycapture.exe`（位于 `target/release/`）
+可执行文件名称：`wingif.exe`（位于 `target/release/`）
 
 ## Project Structure
 
@@ -53,25 +53,21 @@ crates/
 
 ### Key Modules
 
-**app/src/main.rs**
+**app/src/main_egui.rs**
 - 入口点，初始化 DPI awareness（Per-Monitor V2）
-- 创建 MainWindow 和状态机
-- 启动 capture worker 线程和 result handler 线程
+- 创建 EguiUiState，启动 capture worker 和 result handler 线程
 - 通过 crossbeam-channel 进行线程间通信
-- 处理 Record/Stop/Export 按钮回调
+- 运行 eframe/egui 主循环，处理 Record/Stop/Export 回调
 
 **app/src/state.rs**
 - 状态机定义：`Idle → Selecting → Recording → Recorded → Exporting`
 - RecordingSession 数据结构（target, region, temp_dir, frame_count, fps）
 - RecordingTarget 枚举（Monitor 或 Window）
 
-**app/src/ui.rs**
-- MainWindow：Win32 窗口创建和消息循环
-- UiState：共享状态（通过 Arc<Mutex<>>）
-- 按钮控件（Record, Stop, Export）
-
-**app/src/tray.rs**
-- 系统托盘图标和菜单
+**app/src/ui_egui.rs**
+- WinGIFApp：eframe::App 实现，egui 界面
+- EguiUiState：共享状态（通过 Arc<Mutex<>>）
+- 按钮与状态展示（Record, Stop, Export）
 
 **overlay/src/window.rs**
 - OverlayWindow::show() 创建全屏覆盖窗口
@@ -98,7 +94,7 @@ crates/
 
 **capture_wgc/src/frame.rs**
 - FrameProcessor：接收帧，裁剪（如果需要），保存为 PNG
-- 帧保存到 %TEMP%\tinycapture_<uuid>\ 目录
+- 帧保存到 %TEMP%\wingif_<uuid>\ 目录
 
 **export/src/gif.rs**
 - GifExporter::export_from_pngs() 使用 gifski 将 PNG 序列转换为 GIF
@@ -116,23 +112,22 @@ crates/
 ### Threading Model
 
 1. **UI Thread（主线程）**
-   - Win32 消息循环
-   - 处理按钮点击
-   - 更新 UI 状态
+   - eframe/egui 事件循环
+   - 处理按钮点击与 UI 更新
 
 2. **Capture Worker Thread**
-   - 在 `main.rs:capture_worker()` 中运行
+   - 在 `main_egui.rs:capture_worker()` 中运行
    - 接收 CaptureCommand（Start, Stop, Shutdown）
    - 调用 CaptureController 和 FrameProcessor
    - 发送 CaptureResult（Started, Progress, Stopped, Error）
 
 3. **Result Handler Thread**
    - 接收 capture worker 的结果
-   - 更新 UI 状态（通过 Arc<Mutex<UiState>>）
-   - 使用 post_update_state() 触发 UI 重绘
+   - 更新 UI 状态（通过 Arc<Mutex<EguiUiState>>）
+   - egui 每帧读取状态并重绘
 
 4. **Export Worker Thread**
-   - 在 `main.rs:on_export_click()` 中 spawn
+   - 在 `main_egui.rs:on_export_click()` 中 spawn
    - 后台运行 gifski 编码
    - 完成后更新 UI
 
@@ -150,7 +145,7 @@ crates/
 - **DPI Awareness:** 使用 `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)`，所有 Rect 使用物理像素
 - **Multi-Monitor:** Overlay 覆盖整个虚拟桌面；区域捕获使用包含选区中心点的显示器
 - **Window Selection:** 通过 Z-order 枚举窗口（不能用 WindowFromPoint，因为 overlay 覆盖了屏幕）
-- **Frame Storage:** 录制时帧保存为 PNG 序列到 `%TEMP%\tinycapture_<uuid>\frame_00000.png`
+- **Frame Storage:** 录制时帧保存为 PNG 序列到 `%TEMP%\wingif_<uuid>\frame_00000.png`
 - **Crop Rect:** 区域捕获时，将虚拟桌面坐标转换为显示器相对坐标作为裁剪矩形
 - **WinRT Initialization:** Capture worker 线程必须调用 `RoInitialize(RO_INIT_MULTITHREADED)`
 

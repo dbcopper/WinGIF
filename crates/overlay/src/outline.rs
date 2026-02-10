@@ -18,7 +18,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use crate::{OverlayError, OverlayResult};
 
-const OUTLINE_CLASS: PCWSTR = w!("TinyCaptureRecordingOutline");
+const OUTLINE_CLASS: PCWSTR = w!("WinGIFRecordingOutline");
 const OUTLINE_THICKNESS: i32 = 2;
 
 static REGISTER: Once = Once::new();
@@ -58,7 +58,7 @@ pub fn show_recording_outline(rect: Rect) -> OverlayResult<isize> {
         let hwnd = CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
             OUTLINE_CLASS,
-            w!("TinyCapture Recording"),
+            w!("WinGIF Recording"),
             WS_POPUP,
             rect.x,
             rect.y,

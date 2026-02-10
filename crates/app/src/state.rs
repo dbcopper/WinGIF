@@ -1,4 +1,4 @@
-//! State machine for TinyCapture
+//! State machine for WinGIF
 
 use capture_wgc::Rect;
 use std::path::PathBuf;
